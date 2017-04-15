@@ -1,0 +1,287 @@
+#include"sa.h"
+#include<stack>
+#include<time.h>
+#include<iostream>
+//以下宏供模拟退火使用
+#define T     1000    //初始温度  
+#define EPS   1    //终止温度  
+#define DELTA 0.2    //温度衰减率  
+#define LIMIT 10   //概率选择上限  
+#define OLOOP 10    //外循环次数  
+using namespace std;
+
+int Target(int sever_cost,int num_user,sever_inf &sever, User_inf userinf[])
+{
+	int cost = 0;
+	for (int i = 0; i < sever.sever_num; i++)
+	{
+		cost = cost + sever_cost;
+	}
+	for (int i = 0; i < num_user; i++)
+	{
+		cost = cost + userinf[i].total_cost;
+	}
+	return cost;
+}
+//恢复部分路径（起点为指定服务器）
+void recover(int point, int num_user, int**matrix_w, User_inf userinf[])
+{
+	for (int i = 0; i < num_user; i++)
+	{
+		for (int j = 0; j < userinf[i].path_num; j++)
+		{
+			if (userinf[i].sever[j] == point)
+			{
+				for (int z = userinf[i].path_length[j] - 1; z >= 1; z--)
+				{
+					matrix_w[userinf[i].path[j][z]][userinf[i].path[j][z - 1]] = matrix_w[userinf[i].path[j][z]][userinf[i].path[j][z - 1]] + userinf[i].path_w[j];
+				}
+			}
+		}
+	}
+}
+
+inline bool findroutes(int user_id, int num_user, int num_point, int sever_cost, bool*sever_array, sever_inf &sever, int*user, int*user_w, int**matrix_w, int**matrix_p, User_inf userinf[])
+{
+	//深度优先
+	stack<int>q;//定义一个队列存储可行节点
+	bool*visited = new bool[num_point];// 定义一个数组，存储访问过的点
+	bool**v_edge = new bool*[num_point];	// 对于一个顶点，是否走过其分支的标志位
+	for (int i = 0; i <num_point; i++)
+		v_edge[i] = new bool[num_point];
+	for (int i = 0; i < num_point; i++)
+	{
+		visited[i] = false;
+		for (int j = 0; j < num_point; j++)
+			v_edge[i][j] = false;
+	}
+	int start = user[user_id];
+	q.push(start);// 将消费节点point入栈
+	visited[start] = true;
+	int path_index = 0;//记录消费节点point的路径数
+	int min_w = 101;//记录当前路径的最小带宽
+	while (!q.empty())
+	{
+		//搜索
+		int i = q.top();
+		int j = 0;
+		while (j <num_point)
+		{
+			if ((matrix_w[j][i]>0) && (101>matrix_w[j][i]) && (!visited[j]) && (!v_edge[j][i]))
+			{
+				visited[j] = true;
+				v_edge[j][i] = true;// 设置标志位为:已访问
+				q.push(j);// 将j压入栈
+				break;
+			}
+			else
+			{
+				j++;
+			}
+		}
+		// 如果没有路可走的时候，或者走到结束点的时候，要弹栈
+		if (j == num_point || sever_array[q.top()] == true)
+		{
+			if (sever_array[q.top()] == true)
+			{
+				//满足终点要求
+				int num = q.size();
+				for (int z = num - 1; z >= 0; z--)
+				{
+					userinf[user_id].path[path_index][z] = q.top();
+					q.pop();
+				}
+				for (int z = 0; z <num; z++)
+				{
+					q.push(userinf[user_id].path[path_index][z]);
+				}
+				for (int z = num - 1; z >= 1; z--)
+				{
+					if (matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]] < min_w)
+						min_w = matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]];
+				}
+				if (min_w >= user_w[user_id])
+				{
+					for (int z = num - 1; z >= 1; z--)
+					{
+						matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]] = matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]] - user_w[user_id];
+					}
+					userinf[user_id].path_w[path_index] = user_w[user_id];
+					userinf[user_id].sever[path_index] = q.top();
+					userinf[user_id].path_length[path_index] = q.size();
+					path_index++;
+					userinf[user_id].path_num = path_index;
+					return true;
+				}
+				else
+				{
+					for (int z = num - 1; z >= 1; z--)
+					{
+						matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]] = matrix_w[userinf[user_id].path[path_index][z]][userinf[user_id].path[path_index][z - 1]] - min_w;
+					}
+					userinf[user_id].path_w[path_index] = min_w;
+					userinf[user_id].sever[path_index] = q.top();
+					userinf[user_id].path_length[path_index] = q.size();
+					path_index++;
+					userinf[user_id].path_num = path_index;
+					user_w[user_id] = user_w[user_id] - min_w;
+					min_w = 101;//记录当前路径的最小带宽
+					if (userinf[user_id].path_num > 20)
+						return false;
+				}
+			}
+			int toppoint = q.top();
+			q.pop();// 弹出当前元素并将标志位复位
+			visited[toppoint] = false;
+			for (int k = 0; k <num_point; k++)
+			{
+				v_edge[k][toppoint] = false;
+			}
+		}
+	}
+	return false;
+}
+
+bool findroute_s(int point, int num_user, int num_point, int sever_cost, sever_inf &sever, int*user, int*r_user_w, int**real_w, int**matrix_p, User_inf userinf[])
+{
+	//可能更改的数据集建立副本
+	int**matrix_w = new int*[num_point];
+	for (int i = 0; i < num_point; i++)
+	{
+		matrix_w[i] = new int[num_point];
+	}
+	for (int i = 0; i < num_point; i++)
+	{
+		for (int j = 0; j < num_point; j++)
+		{
+			matrix_w[i][j] = real_w[i][j];
+		}
+	}
+	int *user_w = new int[num_user];
+	for (int i = 0; i < num_user; i++)
+	{
+		user_w[i] = r_user_w[i];
+	}
+	//以服务器作为终止边界
+	bool*sever_array = new bool[num_point];
+	for (int i = 0; i < num_point; i++)
+	{
+		sever_array[i] = false;
+	}
+	for (int i = 0; i < sever.sever_num; i++)
+	{
+		if (sever.sever[i] != point)
+		{
+			sever_array[sever.sever[i]] = true;//服务器访问位
+		}
+	}
+	int r_search[500];
+	int r_n = 0;//需要判断的消费节点
+	//遍历服务器point所连接的消费节点
+	for (int i = 0; i < num_user; i++)
+	{
+ 		for (int j = 0; j < userinf[i].path_num; j++)
+		{
+			if (userinf[i].sever[j] == point)
+			{
+				r_search[r_n] = i;
+				r_n++;
+				break;
+			}
+		}
+	}
+	bool flag=false;
+	for (int i = 0; i < r_n; i++)
+	{
+		flag = findroutes(r_search[i], num_user, num_point, sever_cost, sever_array, sever, user,user_w, matrix_w, matrix_p, userinf);
+		if (flag == false)
+			break;
+	}
+	return flag;
+}
+
+void copy_pathdata(User_inf*a2, User_inf*a1,int num_user,int num_point)
+{
+	for (int i = 0; i < num_user; i++)
+	{
+		for (int j = 0; j <a1[i].path_num; j++)
+		{
+			for (int z = 0; z <a1[i].path_length[j]; z++)
+			{
+				a2[i].path[j][z] = a1[i].path[j][z];
+			}
+			a2[i].path_cost[j] = a1[i].path_cost[j];
+			a2[i].path_length[j] = a1[i].path_length[j];
+			a2[i].path_w[j] = a1[i].path_w[j];
+			a2[i].sever[j] = a1[i].sever[j];
+		}
+		for (int h = 0; h <num_point; h++)
+		{
+			a2[i].point_cost[h] = a1[i].point_cost[h];
+		}
+		a2[i].path_num = a1[i].path_num;
+		a2[i].total_cost = a1[i].total_cost;
+	}
+}
+
+void SA(int sever_cost, int num_user, int num_point, int*user, int*user_w, sever_inf &sever, int**origin_w, int**matrix_w, int**matrix_p, User_inf*userinf, User_inf*old_userinf, char*filename)
+{
+	srand(time(NULL));
+	double t = T;
+	int curCost = Target(sever_cost, num_user, sever, userinf);//当前总代价
+	bool*sever_array = new bool[num_point];
+	for (int i = 0; i < num_point; i++)
+	{
+		sever_array[i] = false;
+	}
+	for (int i = 0; i < sever.sever_num; i++)
+	{
+		sever_array[sever.sever[i]] = true;//服务器访问位
+	}
+	int newCost = 0;
+	int out_loop = 0;//外循环次数
+	int Probability_limit = 0;
+	while (1)
+	{
+		int i = rand()%num_user;
+		bool s=findroutes(i, num_user, num_point, sever_cost, sever_array, sever, user, user_w, matrix_w, matrix_p, userinf);
+		if (s)
+		{
+			newCost = Target(sever_cost, num_user, sever, userinf);//得到当前的方案代价
+			double delta_E = newCost - curCost;//代价差
+			if (delta_E< 0)   //如果找到更优值，直接更新  
+			{
+				curCost = newCost;
+				Get_result(userinf, num_point, num_user, origin_w, matrix_w, matrix_p, filename);
+				out_loop = 0;//外循环次数为零
+				Probability_limit = 0;
+			}
+			else
+			{
+				double rand_num = rand() / (RAND_MAX + 1.0);
+				if ((exp(delta_E / t) >rand_num) && (exp(delta_E / t) < 1))
+				{
+					//如果找到比当前更差的解，以一定概率接受该解，并且这个概率会越来越小 
+					curCost = newCost;
+					Get_result(userinf, num_point, num_user, origin_w, matrix_w, matrix_p, filename);
+				}
+				Probability_limit++;
+				if (Probability_limit>LIMIT)
+				{
+					//大于概率选择上限就停止
+					out_loop++;
+					break;
+				}
+			}
+		}
+		if (curCost == newCost)
+		{
+			Get_result(userinf, num_point, num_user, origin_w, matrix_w, matrix_p, filename);
+		}
+		if ((out_loop > OLOOP) || (t < EPS))
+		{
+			break;
+		}
+		t *= DELTA;
+	}
+}

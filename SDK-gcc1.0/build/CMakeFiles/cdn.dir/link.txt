@@ -1,0 +1,1 @@
+/usr/bin/c++    -O3 -Wall -std=c++11    CMakeFiles/cdn.dir/io.cpp.o CMakeFiles/cdn.dir/deploy.cpp.o CMakeFiles/cdn.dir/SA.cpp.o CMakeFiles/cdn.dir/GetData.cpp.o CMakeFiles/cdn.dir/cdn.cpp.o CMakeFiles/cdn.dir/mincost.cpp.o  -o /home/yan/桌面/SDK-gcc11.0/bin/cdn -rdynamic 

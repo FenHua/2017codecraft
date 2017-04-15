@@ -1,0 +1,38 @@
+#include"lib_io.h"
+#include"stdio.h"
+#include"iostream"
+#include"stdlib.h"
+using namespace std;
+int GetData(int line_num,int num_point,int num_edge, char*topo[],int **matrix_w,int**matrix_p,int*user_w,int*user)
+{
+	int i;
+	int x, y;
+	int w, p;
+	for (i = 4; i < 4 + num_edge; i++)
+	{
+		char*Inf = strtok(topo[i], " ");
+		x= atoi(Inf);
+		Inf = strtok(NULL, " ");
+		y= atoi(Inf);
+		Inf = strtok(NULL, " ");
+		w = atoi(Inf);
+		Inf = strtok(NULL, " ");
+		p = atoi(Inf);
+		matrix_w[x][y] = w;
+		matrix_w[y][x] = w;//无向图，全双工通信
+		matrix_p[x][y] = p;
+		matrix_p[y][x] = p;//无向图
+	}
+	for (i = 5 + num_edge; i < line_num; i++)
+	{
+		char*Inf = strtok(topo[i], " ");
+		x = atoi(Inf);
+		Inf = strtok(NULL, " ");
+		y = atoi(Inf);
+		Inf = strtok(NULL, " ");
+		w = atoi(Inf);
+		user_w[x] = w;
+		user[x] = y;
+	}
+	return 0;
+}
